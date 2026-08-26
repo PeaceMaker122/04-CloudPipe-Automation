@@ -54,6 +54,20 @@
 
 ## Phase 1 (AWS CDK Infrastructure)
 
+### Task 1.0 (Environment Setup)
+
+**1. What this task is solving**
+- Tell CDK which AWS account and region to deploy to before any code is written.
+
+**2. What I did**
+- Set the stack environment in `bin/infrastructure.ts`: account from `CDK_DEFAULT_ACCOUNT`, region hardcoded to `us-east-1`.
+
+**3. Why I did it**
+- ACM certificates for CloudFront must live in `us-east-1`, so the region needs to be explicit.
+
+**4. What I rejected**
+- Leaving the stack environment-agnostic (would break ACM/CloudFront in later tasks).
+
 ### Task 1A (S3 Buckets)
 
 **1. What this task is solving**
