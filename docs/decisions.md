@@ -90,3 +90,34 @@
 **4. What I rejected**
 - Making the buckets public or enabling static website hosting (would let anyone bypass CloudFront and hit S3 directly).
 - Using a single shared bucket for both environments (would remove the staging safety net).
+
+### Task 1B (ACM Certificate + CloudFront Distributions)
+
+**1. What this task is solving**
+- Adds the delivery layer: how visitors actually reach the website.
+- Two CloudFront distributions (staging + production) serve each environment's bucket.
+- An ACM certificate provides HTTPS for the site's domain.
+- Origin Access Control (OAC) lets CloudFront read the private buckets without making them public.
+
+**2. What I did**
+- Created an ACM certificate for the site domain (`example.com` + `*.example.com`).
+- Created two CloudFront distributions, one per environment, each pointing at its own bucket.
+- Wired each distribution to its bucket using `S3BucketOrigin.withOriginAccessControl(...)` (OAC, not the legacy OAI).
+- Set `index.html` as the default root object on both distributions.
+- Confirmed via `cdk synth` that each bucket's policy grants access only to its own distribution (via `AWS:SourceArn`), not to CloudFront broadly.
+
+**3. Why I did it**
+- Two distributions keep staging and production fully isolated at the delivery layer.
+- OAC is the current recommended way to give CloudFront access while keeping buckets private.
+- Scoping each bucket policy to its specific distribution prevents one distribution from reading the other's content.
+
+**4. What I rejected**
+- Using the legacy Origin Access Identity (OAI) instead of OAC.
+- Making the buckets public or enabling static website hosting to serve the site.
+- A single shared distribution for both environments (would lose staging isolation).
+
+**Domain decision (placeholder):**
+- No real domain is available for this project yet, so `example.com` is used as a placeholder.
+- The ACM certificate stays in "pending validation" because the placeholder domain can't be validated (DNS/email).
+- CloudFront requires an issued certificate, so the distributions are **not** attached to the certificate and instead use CloudFront's default `*.cloudfront.net` domain for now.
+- When a real domain is added later: validate the certificate, then attach it with aliases to both distributions.
