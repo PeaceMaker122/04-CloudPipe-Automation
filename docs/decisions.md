@@ -25,6 +25,33 @@
 
 ---
 
+## Phase 0.5 (Architecture Design & Diagram)
+
+**1. What this task is solving**
+- Design the target-state architecture before any implementation, so the build follows a clear blueprint.
+- Map both the pipeline layer (how code flows to production) and the delivery layer (how visitors reach the site).
+- Establish the full component layout up front: GitHub, GitHub Actions, S3, CloudFront, ACM, and the OIDC trust.
+
+**2. What I did**
+- Designed the target-state architecture in Excalidraw (`diagram/Target-state-architecture-diagram.excalidraw`).
+- Exported a PNG screenshot of the diagram (`screenshots/Target-state-architecture-diagram.png`).
+- Mapped the pipeline layer: Developer → GitHub → GitHub Actions (with OIDC and AI review) → Staging → (approval/merge) → Production.
+- Mapped the delivery layer: Visitor → CloudFront → S3, with ACM providing the certificate.
+- Showed two separate CloudFront distributions (one per environment) and two S3 buckets (staging + production).
+- Included the OIDC trust via AWS STS and the CloudFront cache-invalidation step.
+
+**3. Why I did it**
+- Design before implement: a clear blueprint catches issues before any code is written.
+- Visualizing both layers makes the data flow and each component's role explicit and reviewable.
+- The diagram doubles as the architecture diagram needed for the Phase 5 README.
+
+**4. What I rejected**
+- Starting implementation without a design (risks building the wrong thing).
+- A single shared CloudFront/S3 setup for both environments (would lose staging isolation).
+- Leaving the design as a throwaway sketch (it's a reference for the whole project).
+
+---
+
 ## Phase 1 (AWS CDK Infrastructure)
 
 ### Task 1A (S3 Buckets)
