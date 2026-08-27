@@ -147,3 +147,25 @@
 - A static IAM user with a long-lived access key pasted into GitHub (leak risk).
 - A single shared deploy role for both environments (can't distinguish staging from production).
 - Loose/wildcard trust matching on the `sub` claim (could trust more repos than intended).
+
+### Task 1D (Monitoring)
+
+**1. What this task is solving**
+- Detects when the live production site goes down after a deployment.
+- Alerts the team automatically so they hear about a problem from a system, not from an angry client email.
+
+**2. What I did**
+- Created a Lambda synthetic check (Python 3.12) that requests the production CloudFront URL and publishes a `HealthCheckFailed` metric (1 on failure, 0 on success).
+- Scheduled it to run every 5 minutes via a CloudWatch Events rule.
+- Created a CloudWatch alarm on the `HealthCheckFailed` metric that fires when a check fails.
+- Created an SNS topic ("CloudPipe Production Alerts") and subscribed `stiaant1@gmail.com` to receive alerts.
+- Wired the alarm to notify the SNS topic on failure.
+
+**3. Why I did it**
+- A synthetic check verifies the site actually loads, not just that a deployment ran.
+- A schedule keeps the check running continuously without human involvement.
+- SNS delivers the alert to email so the team is notified within minutes of a problem.
+
+**4. What I rejected**
+- Relying on manual checks or waiting for a customer to report an outage.
+- Checking only the deployment status without verifying the live site responds.
