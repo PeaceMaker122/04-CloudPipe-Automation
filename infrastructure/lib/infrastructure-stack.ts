@@ -4,6 +4,16 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as path from 'path';
+
+// Email that receives SNS alerts when the production site fails its health check.
+const ALERT_EMAIL = 'stiaant1@gmail.com';
 
 // GitHub repo that GitHub Actions will authenticate as. Used to scope the OIDC
 // trust so only this repo can assume the deploy roles.
@@ -115,5 +125,44 @@ export class InfrastructureStack extends cdk.Stack {
     });
     productionBucket.grantReadWrite(productionDeployRole);
     productionDistribution.grantCreateInvalidation(productionDeployRole);
+
+    // SNS topic: receives alerts when the production site fails its health check.
+    const alertTopic = new sns.Topic(this, 'AlertTopic', {
+      displayName: 'CloudPipe Production Alerts',
+    });
+    alertTopic.addSubscription(new subscriptions.EmailSubscription(ALERT_EMAIL));
+
+    // Synthetic check: a Lambda function that requests the production URL on a
+    // schedule and publishes a metric (1 on failure, 0 on success).
+    const healthCheckFn = new lambda.Function(this, 'HealthCheckFunction', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'health_check.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '..', 'lambda', 'health_check')),
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        PRODUCTION_URL: `https://${productionDistribution.distributionDomainName}`,
+      },
+    });
+
+    // Run the health check every 5 minutes.
+    const schedule = new events.Rule(this, 'HealthCheckSchedule', {
+      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+    });
+    schedule.addTarget(new targets.LambdaFunction(healthCheckFn));
+
+    // Alarm: fires when the health check reports a failure.
+    const healthCheckAlarm = new cloudwatch.Alarm(this, 'HealthCheckAlarm', {
+      metric: new cloudwatch.Metric({
+        namespace: 'CloudPipe',
+        metricName: 'HealthCheckFailed',
+        statistic: 'Maximum',
+        period: cdk.Duration.minutes(5),
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: 'Production site failed its health check',
+    });
+    healthCheckAlarm.addAlarmAction(new cdk.aws_cloudwatch_actions.SnsAction(alertTopic));
   }
 }
