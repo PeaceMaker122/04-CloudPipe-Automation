@@ -92,6 +92,7 @@ export class InfrastructureStack extends cdk.Stack {
     // any developer's feature-branch PR can deploy to staging. Scoped to write
     // to the staging bucket and invalidate the staging distribution.
     const stagingDeployRole = new iam.Role(this, 'GitHubStagingDeployRole', {
+      roleName: 'cloudpipe-staging-deploy-role',
       assumedBy: new iam.FederatedPrincipal(
         githubProvider.openIdConnectProviderArn,
         {
@@ -111,6 +112,7 @@ export class InfrastructureStack extends cdk.Stack {
     // only ever receives changes that were reviewed in staging. Scoped to write
     // to the production bucket and invalidate the production distribution.
     const productionDeployRole = new iam.Role(this, 'GitHubProductionDeployRole', {
+      roleName: 'cloudpipe-production-deploy-role',
       assumedBy: new iam.FederatedPrincipal(
         githubProvider.openIdConnectProviderArn,
         {
@@ -164,5 +166,13 @@ export class InfrastructureStack extends cdk.Stack {
       alarmDescription: 'Production site failed its health check',
     });
     healthCheckAlarm.addAlarmAction(new cdk.aws_cloudwatch_actions.SnsAction(alertTopic));
+
+    // Outputs: expose the resource identifiers the GitHub Actions workflows need.
+    new cdk.CfnOutput(this, 'StagingBucketName', { value: stagingBucket.bucketName });
+    new cdk.CfnOutput(this, 'ProductionBucketName', { value: productionBucket.bucketName });
+    new cdk.CfnOutput(this, 'StagingDistributionId', { value: stagingDistribution.distributionId });
+    new cdk.CfnOutput(this, 'ProductionDistributionId', { value: productionDistribution.distributionId });
+    new cdk.CfnOutput(this, 'StagingDeployRoleArn', { value: stagingDeployRole.roleArn });
+    new cdk.CfnOutput(this, 'ProductionDeployRoleArn', { value: productionDeployRole.roleArn });
   }
 }

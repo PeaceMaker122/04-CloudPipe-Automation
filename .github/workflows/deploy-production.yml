@@ -1,0 +1,31 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::104783764104:role/cloudpipe-production-deploy-role
+          aws-region: us-east-1
+
+      - name: Deploy to production S3
+        run: aws s3 sync ./website s3://<production-bucket-name> --delete
+
+      - name: Invalidate production CloudFront cache
+        run: aws cloudfront create-invalidation --distribution-id <production-distribution-id> --paths "/*"
+
+      - name: Notify team on failure
+        if: failure()
+        run: echo "send SNS/Slack notification here"
