@@ -121,3 +121,29 @@
 - The ACM certificate stays in "pending validation" because the placeholder domain can't be validated (DNS/email).
 - CloudFront requires an issued certificate, so the distributions are **not** attached to the certificate and instead use CloudFront's default `*.cloudfront.net` domain for now.
 - When a real domain is added later: validate the certificate, then attach it with aliases to both distributions.
+
+### Task 1C (OIDC Trust Between GitHub and AWS)
+
+**1. What this task is solving**
+- Replaces stored AWS access keys with passwordless, short-lived credentials.
+- Lets GitHub Actions authenticate to AWS via OIDC instead of a long-lived IAM user key.
+- Scopes access so only this repo can deploy, and only to the environments it's allowed to.
+
+**2. What I did**
+- Registered GitHub as an OIDC identity provider (`https://token.actions.githubusercontent.com`) with client ID `sts.amazonaws.com`.
+- Created two IAM roles, one per environment, each with an exact-match (`StringEquals`) trust condition on the `sub` claim:
+  - **Staging role:** `repo:PeaceMaker122/04-CloudPipe-Automation:pull_request` - any feature-branch PR can deploy to staging.
+  - **Production role:** `repo:PeaceMaker122/04-CloudPipe-Automation:ref:refs/heads/main` - only merges to `main` can deploy to production.
+- Scoped each role's permissions to exactly what it needs: read/write on its own bucket and `cloudfront:CreateInvalidation` on its own distribution.
+- Confirmed via `cdk synth` that the trust conditions and permissions are correct.
+
+**3. Why I did it**
+- OIDC removes the risk of a leaked long-lived credential sitting in GitHub Secrets.
+- Two roles give the tightest scoping: feature branches reach staging only, and only `main` reaches production.
+- Exact-match trust conditions avoid the loose wildcard matching AWS warns against.
+- Narrowly scoped permissions mean each role can only touch its own environment.
+
+**4. What I rejected**
+- A static IAM user with a long-lived access key pasted into GitHub (leak risk).
+- A single shared deploy role for both environments (can't distinguish staging from production).
+- Loose/wildcard trust matching on the `sub` claim (could trust more repos than intended).
