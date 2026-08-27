@@ -3,6 +3,12 @@ import { Construct } from 'constructs';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as iam from 'aws-cdk-lib/aws-iam';
+
+// GitHub repo that GitHub Actions will authenticate as. Used to scope the OIDC
+// trust so only this repo can assume the deploy roles.
+const GITHUB_OWNER = 'PeaceMaker122';
+const GITHUB_REPO = '04-CloudPipe-Automation';
 
 // Placeholder domain for the site. A real domain is not available yet, so the
 // certificate below stays in "pending validation" and is not attached to the
@@ -63,5 +69,51 @@ export class InfrastructureStack extends cdk.Stack {
       },
       defaultRootObject: 'index.html',
     });
+
+    // OIDC identity provider: registers GitHub as a trusted identity source so
+    // GitHub Actions can request short-lived AWS credentials without storing
+    // any long-lived access keys in the repo.
+    const githubProvider = new iam.OpenIdConnectProvider(this, 'GitHubOidcProvider', {
+      url: 'https://token.actions.githubusercontent.com',
+      clientIds: ['sts.amazonaws.com'],
+    });
+
+    // Staging deploy role: assumable only by pull requests from this repo, so
+    // any developer's feature-branch PR can deploy to staging. Scoped to write
+    // to the staging bucket and invalidate the staging distribution.
+    const stagingDeployRole = new iam.Role(this, 'GitHubStagingDeployRole', {
+      assumedBy: new iam.FederatedPrincipal(
+        githubProvider.openIdConnectProviderArn,
+        {
+          StringEquals: {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}/${GITHUB_REPO}:pull_request`,
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity',
+      ),
+      description: 'Allows GitHub Actions to deploy to staging on pull requests',
+    });
+    stagingBucket.grantReadWrite(stagingDeployRole);
+    stagingDistribution.grantCreateInvalidation(stagingDeployRole);
+
+    // Production deploy role: assumable only by merges to main, so production
+    // only ever receives changes that were reviewed in staging. Scoped to write
+    // to the production bucket and invalidate the production distribution.
+    const productionDeployRole = new iam.Role(this, 'GitHubProductionDeployRole', {
+      assumedBy: new iam.FederatedPrincipal(
+        githubProvider.openIdConnectProviderArn,
+        {
+          StringEquals: {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}/${GITHUB_REPO}:ref:refs/heads/main`,
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity',
+      ),
+      description: 'Allows GitHub Actions to deploy to production on merge to main',
+    });
+    productionBucket.grantReadWrite(productionDeployRole);
+    productionDistribution.grantCreateInvalidation(productionDeployRole);
   }
 }
