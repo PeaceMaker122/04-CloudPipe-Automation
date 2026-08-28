@@ -275,3 +275,22 @@ Provides the actual website files that the pipeline deploys, so the staging and 
 **4. What I rejected**
 - Leaving the `website/` folder empty (the deploy steps would sync nothing).
 - Adding separate CSS/JS asset files before the pipeline is proven (kept it simple for now).
+
+### Task 2.6 (Deployment & Workflow Population)
+
+**1. What this task is solving**
+
+Deploys the CDK stack to AWS for the first time and wires the GitHub Actions workflows to the real deployed resources.
+
+**2. What I did**
+- Ran `cdk deploy`, which created all the infrastructure in AWS successfully.
+- Captured the stack outputs: bucket names, distribution IDs, and role ARNs.
+- Replaced the placeholder bucket names and distribution IDs in `deploy-staging.yml` and `deploy-production.yml` with the real values from the outputs.
+- Confirmed the role ARNs in the workflows match the deployed roles.
+
+**3. Why I did it**
+- The workflows need the actual resource identifiers to deploy to the right buckets and distributions.
+- Using the real values makes the pipeline ready to run end-to-end.
+
+**4. What I rejected**
+- Leaving the placeholders in the workflows (they would fail at runtime).
