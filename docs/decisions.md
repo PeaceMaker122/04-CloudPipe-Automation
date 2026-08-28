@@ -295,6 +295,31 @@ Deploys the CDK stack to AWS for the first time and wires the GitHub Actions wor
 **4. What I rejected**
 - Leaving the placeholders in the workflows (they would fail at runtime).
 
+### Task 2.7 (Pipeline Troubleshooting)
+
+**1. What this task is solving**
+
+Resolves the issues that surfaced when the pipeline ran for the first time, so the staging deploy and AI review work end to end.
+
+**2. What I did**
+- Diagnosed the OIDC failure by adding a temporary step to print the token claims, revealing that GitHub's `sub` claim includes numeric IDs.
+- Updated all three IAM role trust conditions to include the owner and repo IDs in the `sub` claim.
+- Fixed the AI review Bedrock call by switching from the `converse` API to `invoke_model` (the runner's SDK lacked `converse`).
+- Switched the model to the Sonnet 4.5 inference profile (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`), which is enabled for the account.
+- Widened the AI review role's `bedrock:InvokeModel` permission to `*` to cover cross-region routing.
+- Added `GITHUB_TOKEN` to the AI review step so it can post the PR comment.
+- Removed the temporary token-printing debug step once the issue was resolved.
+
+**3. Why I did it**
+- The OIDC `sub` claim format changed to include numeric IDs, so the trust conditions had to match the new format.
+- `invoke_model` is more widely supported than `converse` on the runner's SDK.
+- The model requires an inference profile, and cross-region routing makes the resource ARN unpredictable, so a broad `bedrock:InvokeModel` permission is the pragmatic fix.
+- The AI review step needs `GITHUB_TOKEN` to post its comment.
+
+**4. What I rejected**
+- Keeping the debug step in the workflow (it exposes token metadata in logs).
+- Trying to scope the Bedrock permission to a specific region/profile (cross-region routing makes it unreliable).
+
 ---
 
 ## Test Note
