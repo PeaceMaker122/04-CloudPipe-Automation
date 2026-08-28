@@ -294,3 +294,9 @@ Deploys the CDK stack to AWS for the first time and wires the GitHub Actions wor
 
 **4. What I rejected**
 - Leaving the placeholders in the workflows (they would fail at runtime).
+
+---
+
+## Test Note
+
+This entry is a small test change to evaluate the full CI/CD process end to end.

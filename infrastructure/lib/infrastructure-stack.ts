@@ -18,9 +18,12 @@ import * as path from 'path';
 const ALERT_EMAIL = 'stiaant1@gmail.com';
 
 // GitHub repo that GitHub Actions will authenticate as. Used to scope the OIDC
-// trust so only this repo can assume the deploy roles.
+// trust so only this repo can assume the deploy roles. The owner and repo IDs
+// are part of GitHub's OIDC sub claim and must be included for the match.
 const GITHUB_OWNER = 'PeaceMaker122';
+const GITHUB_OWNER_ID = '214525680';
 const GITHUB_REPO = '04-CloudPipe-Automation';
+const GITHUB_REPO_ID = '1341115093';
 
 // Real domain for the site, purchased via Route 53. The certificate is validated
 // via DNS in the hosted zone, and both distributions use aliases under this domain.
@@ -125,7 +128,7 @@ export class InfrastructureStack extends cdk.Stack {
         {
           StringEquals: {
             'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}/${GITHUB_REPO}:pull_request`,
+            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}@${GITHUB_OWNER_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:pull_request`,
           },
         },
         'sts:AssumeRoleWithWebIdentity',
@@ -145,7 +148,7 @@ export class InfrastructureStack extends cdk.Stack {
         {
           StringEquals: {
             'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}/${GITHUB_REPO}:ref:refs/heads/main`,
+            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}@${GITHUB_OWNER_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:ref:refs/heads/main`,
           },
         },
         'sts:AssumeRoleWithWebIdentity',
@@ -165,7 +168,7 @@ export class InfrastructureStack extends cdk.Stack {
         {
           StringEquals: {
             'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}/${GITHUB_REPO}:pull_request`,
+            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}@${GITHUB_OWNER_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:pull_request`,
           },
         },
         'sts:AssumeRoleWithWebIdentity',
@@ -175,7 +178,7 @@ export class InfrastructureStack extends cdk.Stack {
     aiReviewRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ['bedrock:InvokeModel'],
-        resources: [`arn:aws:bedrock:${this.region}::foundation-model/*`],
+        resources: ['*'],
       }),
     );
 
