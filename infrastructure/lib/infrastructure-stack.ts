@@ -128,6 +128,30 @@ export class InfrastructureStack extends cdk.Stack {
     productionBucket.grantReadWrite(productionDeployRole);
     productionDistribution.grantCreateInvalidation(productionDeployRole);
 
+    // AI review role: assumable by pull requests, scoped only to invoke Bedrock
+    // for the AI code-review step. Kept separate from the deploy roles so those
+    // stay narrowly scoped to their own environments.
+    const aiReviewRole = new iam.Role(this, 'GitHubAiReviewRole', {
+      roleName: 'cloudpipe-ai-review-role',
+      assumedBy: new iam.FederatedPrincipal(
+        githubProvider.openIdConnectProviderArn,
+        {
+          StringEquals: {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+            'token.actions.githubusercontent.com:sub': `repo:${GITHUB_OWNER}/${GITHUB_REPO}:pull_request`,
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity',
+      ),
+      description: 'Allows GitHub Actions to review pull requests with Amazon Bedrock',
+    });
+    aiReviewRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: [`arn:aws:bedrock:${this.region}::foundation-model/*`],
+      }),
+    );
+
     // SNS topic: receives alerts when the production site fails its health check.
     const alertTopic = new sns.Topic(this, 'AlertTopic', {
       displayName: 'CloudPipe Production Alerts',
@@ -174,5 +198,6 @@ export class InfrastructureStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ProductionDistributionId', { value: productionDistribution.distributionId });
     new cdk.CfnOutput(this, 'StagingDeployRoleArn', { value: stagingDeployRole.roleArn });
     new cdk.CfnOutput(this, 'ProductionDeployRoleArn', { value: productionDeployRole.roleArn });
+    new cdk.CfnOutput(this, 'AiReviewRoleArn', { value: aiReviewRole.roleArn });
   }
 }
