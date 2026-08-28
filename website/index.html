@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudPipe</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #1f2933;
+      background: #f9fafb;
+    }
+
+    header {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 1.25rem 2rem;
+    }
+
+    header .brand {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    p {
+      margin-bottom: 1rem;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .card h2 {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="brand">CloudPipe</span>
+  </header>
+
+  <main>
+    <h1>Modern websites for local businesses</h1>
+    <p>
+      CloudPipe is a small web development company that builds fast, reliable
+      websites for local businesses. We handle the design, build, and hosting so
+      you can focus on running your business.
+    </p>
+    <p>
+      This site is deployed automatically through a CI/CD pipeline. Every change
+      is tested in a staging environment before it reaches production.
+    </p>
+
+    <div class="card">
+      <h2>Get in touch</h2>
+      <p>
+        Ready to grow your business online? Contact us to start your project.
+      </p>
+    </div>
+  </main>
+
+  <footer>
+    &copy; <span id="year"></span> CloudPipe. All rights reserved.
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
