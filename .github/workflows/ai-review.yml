@@ -5,6 +5,7 @@ on:
     branches: [main]
 
 permissions:
+  id-token: write
   contents: read
   pull-requests: write
 
@@ -16,15 +17,75 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get PR diff
-        id: diff
-        run: |
-          git fetch origin "${{ github.event.pull_request.base.ref }}"
-          git diff origin/"${{ github.event.pull_request.base.ref }}"..."${{ github.event.pull_request.head.sha }}" > pr.diff
-
-      - name: Run AI review
-        uses: openai/openai-pr-reviewer@v1
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-          run_markdown_comments: true
+          role-to-assume: arn:aws:iam::104783764104:role/cloudpipe-ai-review-role
+          aws-region: us-east-1
+
+      - name: Get PR diff
+        run: |
+          git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
+          git diff origin/"${{ github.event.pull_request.base.ref }}"...HEAD > pr.diff
+
+      - name: Run Bedrock AI review
+        continue-on-error: true
+        env:
+          BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID || 'anthropic.claude-sonnet-5' }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          python - <<'EOF'
+          import json
+          import os
+          import urllib.request
+
+          import boto3
+          from botocore.exceptions import ClientError
+
+          model_id = os.environ["BEDROCK_MODEL_ID"]
+
+          with open("pr.diff", "r", encoding="utf-8") as f:
+              diff = f.read()
+          # Keep the diff within the model's context window.
+          if len(diff) > 60000:
+              diff = diff[:60000]
+
+          prompt = (
+              "You are a code reviewer for a website deployment pipeline. "
+              "Review the pull request diff below and flag anything worth a second "
+              "look: potential secrets or API keys, unusually large or risky changes, "
+              "and obviously missing files. Be concise. Do not approve or reject the "
+              "change; a human makes the final call.\n\n"
+              f"<diff>\n{diff}\n</diff>"
+          )
+
+          bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+          try:
+              response = bedrock.converse(
+                  modelId=model_id,
+                  messages=[{"role": "user", "content": [{"text": prompt}]}],
+                  inferenceConfig={"maxTokens": 2048},
+              )
+              review = response["output"]["message"]["content"][0]["text"]
+          except ClientError as e:
+              print(f"Bedrock error: {e}")
+              raise
+
+          body = f"### AI Review\n\n{review}"
+          payload = json.dumps({"body": body}).encode("utf-8")
+          api = os.environ["GITHUB_API_URL"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          pr = os.environ["PR_NUMBER"]
+          req = urllib.request.Request(
+              f"{api}/repos/{repo}/issues/{pr}/comments",
+              data=payload,
+              headers={
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+          with urllib.request.urlopen(req) as resp:
+              print(f"Posted AI review comment, status {resp.status}")
+          EOF
