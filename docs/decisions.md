@@ -97,7 +97,7 @@ Creates the storage layer for the website files, with two separate buckets (stag
 Adds the delivery layer: how visitors actually reach the website. Two CloudFront distributions (staging + production) serve each environment's bucket, an ACM certificate provides HTTPS for the site's domain, and Origin Access Control (OAC) lets CloudFront read the private buckets without making them public.
 
 **2. What I did**
-- Created an ACM certificate for the site domain (`example.com` + `*.example.com`).
+- Created an ACM certificate for the site domain (`stiaan.click` + `www.stiaan.click` + `staging.stiaan.click`).
 - Created two CloudFront distributions, one per environment, each pointing at its own bucket.
 - Wired each distribution to its bucket using `S3BucketOrigin.withOriginAccessControl(...)` (OAC, not the legacy OAI).
 - Set `index.html` as the default root object on both distributions.
@@ -112,12 +112,6 @@ Adds the delivery layer: how visitors actually reach the website. Two CloudFront
 - Using the legacy Origin Access Identity (OAI) instead of OAC.
 - Making the buckets public or enabling static website hosting to serve the site.
 - A single shared distribution for both environments (would lose staging isolation).
-
-**Domain decision (placeholder):**
-- No real domain is available for this project yet, so `example.com` is used as a placeholder.
-- The ACM certificate stays in "pending validation" because the placeholder domain can't be validated (DNS/email).
-- CloudFront requires an issued certificate, so the distributions are **not** attached to the certificate and instead use CloudFront's default `*.cloudfront.net` domain for now.
-- When a real domain is added later: validate the certificate, then attach it with aliases to both distributions.
 
 ### Task 1C (OIDC Trust Between GitHub and AWS)
 
@@ -165,6 +159,29 @@ Detects when the live production site goes down after a deployment and alerts th
 **4. What I rejected**
 - Relying on manual checks or waiting for a customer to report an outage.
 - Checking only the deployment status without verifying the live site responds.
+
+### Task 1E (Domain Setup)
+
+**1. What this task is solving**
+
+Provides a real, owned domain so the ACM certificate can be validated and issued, and so visitors can reach the site through a custom domain instead of CloudFront's default domain.
+
+**2. What I did**
+- Purchased the domain `stiaan.click` via Route 53, which created a hosted zone automatically.
+- Updated the `DOMAIN` constant in the CDK stack to `stiaan.click`.
+- Switched the ACM certificate to DNS validation via the hosted zone, covering `stiaan.click`, `www.stiaan.click`, and `staging.stiaan.click`.
+- Attached the certificate to both CloudFront distributions with aliases: `staging.stiaan.click` for staging, and `stiaan.click` + `www.stiaan.click` for production.
+- Added Route 53 alias records pointing each domain at its CloudFront distribution.
+- Updated the health check to use `https://stiaan.click`.
+
+**3. Why I did it**
+- A real domain lets the certificate validate and issue, fixing an earlier deploy failure due to no real domain available.
+- DNS validation is the right method for CloudFront and is automated through Route 53.
+- Custom aliases give the site a clean, production-ready URL.
+
+**4. What I rejected**
+- Keeping the placeholder `example.com` (certificate can't validate, deploy fails).
+- Using a wildcard `*.stiaan.click` (only staging and production subdomains are needed).
 
 ---
 
