@@ -10,6 +10,8 @@ import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
 import * as path from 'path';
 
 // Email that receives SNS alerts when the production site fails its health check.
@@ -20,12 +22,9 @@ const ALERT_EMAIL = 'stiaant1@gmail.com';
 const GITHUB_OWNER = 'PeaceMaker122';
 const GITHUB_REPO = '04-CloudPipe-Automation';
 
-// Placeholder domain for the site. A real domain is not available yet, so the
-// certificate below stays in "pending validation" and is not attached to the
-// distributions (CloudFront requires an issued certificate). The distributions
-// therefore use CloudFront's default *.cloudfront.net domain for now. When a
-// real domain is added, validate the certificate and attach it with aliases.
-const DOMAIN = 'example.com';
+// Real domain for the site, purchased via Route 53. The certificate is validated
+// via DNS in the hosted zone, and both distributions use aliases under this domain.
+const DOMAIN = 'stiaan.click';
 
 /**
  * Core infrastructure for the CloudPipe deployment pipeline.
@@ -54,30 +53,58 @@ export class InfrastructureStack extends cdk.Stack {
       versioned: true,
     });
 
-    // ACM certificate for the site's domain. Not attached to a distribution
-    // yet: it stays pending validation until a real domain is available, and
-    // CloudFront requires an issued certificate to attach.
-    const certificate = new acm.Certificate(this, 'SiteCertificate', {
+    // Hosted zone for the domain, created automatically when the domain was
+    // registered in Route 53. Used for DNS validation and alias records.
+    const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
       domainName: DOMAIN,
-      subjectAlternativeNames: [`*.${DOMAIN}`],
     });
 
-    // Staging distribution: serves the staging bucket via OAC. Uses CloudFront's
-    // default domain until a real domain is configured.
+    // ACM certificate for the site's domain, validated via DNS in the hosted
+    // zone so CloudFront can attach it. Covers the production domain, www, and
+    // the staging subdomain.
+    const certificate = new acm.Certificate(this, 'SiteCertificate', {
+      domainName: DOMAIN,
+      subjectAlternativeNames: [`www.${DOMAIN}`, `staging.${DOMAIN}`],
+      validation: acm.CertificateValidation.fromDns(hostedZone),
+    });
+
+    // Staging distribution: serves the staging bucket via OAC, using the
+    // staging subdomain and the shared certificate.
     const stagingDistribution = new cloudfront.Distribution(this, 'StagingDistribution', {
+      certificate,
+      domainNames: [`staging.${DOMAIN}`],
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(stagingBucket),
       },
       defaultRootObject: 'index.html',
     });
 
-    // Production distribution: serves the production bucket via OAC. Uses
-    // CloudFront's default domain until a real domain is configured.
+    // Production distribution: serves the production bucket via OAC, using the
+    // apex domain and www, with the shared certificate.
     const productionDistribution = new cloudfront.Distribution(this, 'ProductionDistribution', {
+      certificate,
+      domainNames: [DOMAIN, `www.${DOMAIN}`],
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(productionBucket),
       },
       defaultRootObject: 'index.html',
+    });
+
+    // Route 53 alias records: point the domains at their CloudFront distributions.
+    new route53.ARecord(this, 'StagingAliasRecord', {
+      zone: hostedZone,
+      recordName: `staging.${DOMAIN}`,
+      target: route53.RecordTarget.fromAlias(new route53targets.CloudFrontTarget(stagingDistribution)),
+    });
+    new route53.ARecord(this, 'ProductionAliasRecord', {
+      zone: hostedZone,
+      recordName: DOMAIN,
+      target: route53.RecordTarget.fromAlias(new route53targets.CloudFrontTarget(productionDistribution)),
+    });
+    new route53.ARecord(this, 'WwwAliasRecord', {
+      zone: hostedZone,
+      recordName: `www.${DOMAIN}`,
+      target: route53.RecordTarget.fromAlias(new route53targets.CloudFrontTarget(productionDistribution)),
     });
 
     // OIDC identity provider: registers GitHub as a trusted identity source so
@@ -166,7 +193,7 @@ export class InfrastructureStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '..', 'lambda', 'health_check')),
       timeout: cdk.Duration.seconds(30),
       environment: {
-        PRODUCTION_URL: `https://${productionDistribution.distributionDomainName}`,
+        PRODUCTION_URL: `https://${DOMAIN}`,
       },
     });
 
