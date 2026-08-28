@@ -33,6 +33,7 @@ jobs:
         env:
           BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0' }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python - <<'EOF'
           import json
