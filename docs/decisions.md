@@ -28,9 +28,8 @@
 ## Phase 0.5 (Architecture Design & Diagram)
 
 **1. What this task is solving**
-- Design the target-state architecture before any implementation, so the build follows a clear blueprint.
-- Map both the pipeline layer (how code flows to production) and the delivery layer (how visitors reach the site).
-- Establish the full component layout up front: GitHub, GitHub Actions, S3, CloudFront, ACM, and the OIDC trust.
+
+Design the target-state architecture before any implementation, so the build follows a clear blueprint, mapping both the pipeline layer (how code flows to production) and the delivery layer (how visitors reach the site), and establishing the full component layout up front: GitHub, GitHub Actions, S3, CloudFront, ACM, and the OIDC trust.
 
 **2. What I did**
 - Designed the target-state architecture in Excalidraw (`diagram/Target-state-architecture-diagram.excalidraw`).
@@ -57,7 +56,8 @@
 ### Task 1.0 (Environment Setup)
 
 **1. What this task is solving**
-- Tell CDK which AWS account and region to deploy to before any code is written.
+
+Tell CDK which AWS account and region to deploy to before any code is written.
 
 **2. What I did**
 - Set the stack environment in `bin/infrastructure.ts`: account from `CDK_DEFAULT_ACCOUNT`, region hardcoded to `us-east-1`.
@@ -71,9 +71,8 @@
 ### Task 1A (S3 Buckets)
 
 **1. What this task is solving**
-- Creates the storage layer for the website files.
-- Two separate buckets (staging + production) so changes are tested privately before going live.
-- Buckets stay fully private; CloudFront will be the only way to read from them.
+
+Creates the storage layer for the website files, with two separate buckets (staging + production) so changes are tested privately before going live. Buckets stay fully private; CloudFront will be the only way to read from them.
 
 **2. What I did**
 - Defined two S3 buckets in `infrastructure/lib/infrastructure-stack.ts` using AWS CDK.
@@ -94,10 +93,8 @@
 ### Task 1B (ACM Certificate + CloudFront Distributions)
 
 **1. What this task is solving**
-- Adds the delivery layer: how visitors actually reach the website.
-- Two CloudFront distributions (staging + production) serve each environment's bucket.
-- An ACM certificate provides HTTPS for the site's domain.
-- Origin Access Control (OAC) lets CloudFront read the private buckets without making them public.
+
+Adds the delivery layer: how visitors actually reach the website. Two CloudFront distributions (staging + production) serve each environment's bucket, an ACM certificate provides HTTPS for the site's domain, and Origin Access Control (OAC) lets CloudFront read the private buckets without making them public.
 
 **2. What I did**
 - Created an ACM certificate for the site domain (`example.com` + `*.example.com`).
@@ -125,9 +122,8 @@
 ### Task 1C (OIDC Trust Between GitHub and AWS)
 
 **1. What this task is solving**
-- Replaces stored AWS access keys with passwordless, short-lived credentials.
-- Lets GitHub Actions authenticate to AWS via OIDC instead of a long-lived IAM user key.
-- Scopes access so only this repo can deploy, and only to the environments it's allowed to.
+
+Replaces stored AWS access keys with passwordless, short-lived credentials, letting GitHub Actions authenticate to AWS via OIDC instead of a long-lived IAM user key, and scopes access so only this repo can deploy, and only to the environments it's allowed to.
 
 **2. What I did**
 - Registered GitHub as an OIDC identity provider (`https://token.actions.githubusercontent.com`) with client ID `sts.amazonaws.com`.
@@ -151,8 +147,8 @@
 ### Task 1D (Monitoring)
 
 **1. What this task is solving**
-- Detects when the live production site goes down after a deployment.
-- Alerts the team automatically so they hear about a problem from a system, not from an angry client email.
+
+Detects when the live production site goes down after a deployment and alerts the team automatically so they hear about a problem from a system, not from an angry client email.
 
 **2. What I did**
 - Created a Lambda synthetic check (Python 3.12) that requests the production CloudFront URL and publishes a `HealthCheckFailed` metric (1 on failure, 0 on success).
@@ -169,3 +165,96 @@
 **4. What I rejected**
 - Relying on manual checks or waiting for a customer to report an outage.
 - Checking only the deployment status without verifying the live site responds.
+
+---
+
+## Phase 2 (GitHub Actions Pipeline)
+
+### Task 2A (Staging Deployment)
+
+**1. What this task is solving**
+
+Automatically deploys website changes to the staging environment when a pull request is opened, giving the team a private copy of the site to review before anything reaches production.
+
+**2. What I did**
+- Created `.github/workflows/deploy-staging.yml` triggered on `pull_request` to `main`.
+- Configured OIDC auth via the staging deploy role (`cloudpipe-staging-deploy-role`).
+- Added a step that syncs `./website` to the staging S3 bucket.
+- Added a step that invalidates the staging CloudFront cache.
+
+**3. Why I did it**
+- Staging deploys happen automatically on every PR, so no manual uploads.
+- OIDC keeps credentials short-lived and scoped to the staging environment only.
+- Cache invalidation ensures the staging site shows the latest files.
+
+**4. What I rejected**
+- Deploying straight to production on a PR (would skip the staging safety net).
+- Using long-lived AWS credentials in the workflow.
+
+### Task 2B (AI Review Step)
+
+**1. What this task is solving**
+
+Adds a non-blocking AI check that scans a pull request's diff for obvious risks before it reaches staging, flagging potential secrets, unusually large or risky changes, and missing files for a human reviewer.
+
+**2. What I did**
+- Created `.github/workflows/ai-review.yml` triggered on `pull_request` to `main`.
+- Added a dedicated IAM role (`cloudpipe-ai-review-role`) scoped only to `bedrock:InvokeModel`.
+- Configured OIDC auth via the AI review role.
+- Computes the PR diff and sends it to Claude via Amazon Bedrock (`anthropic.claude-sonnet-5`).
+- Posts the review as a PR comment using the GitHub API.
+- Set `continue-on-error: true` so the step is non-blocking.
+
+**3. Why I did it**
+- Bedrock keeps the AI review inside AWS, so no external API key is needed.
+- A dedicated role keeps Bedrock access separate from the deploy roles.
+- Non-blocking keeps a human in the loop; the AI never approves or rejects a deploy.
+
+**4. What I rejected**
+- Using an external AI provider that requires an API key stored in GitHub.
+- Making the AI review blocking (would let the AI gate deployments).
+- Reusing the deploy roles for the AI review (would widen their permissions).
+
+### Task 2C (Production Deployment)
+
+**1. What this task is solving**
+
+Automatically deploys to production when a change is merged to `main`, ensuring production only receives changes that were reviewed in staging.
+
+**2. What I did**
+- Created `.github/workflows/deploy-production.yml` triggered on `push` to `main`.
+- Configured OIDC auth via the production deploy role (`cloudpipe-production-deploy-role`).
+- Added a step that syncs `./website` to the production S3 bucket.
+- Added a step that invalidates the production CloudFront cache.
+- Added a failure notification step that runs if the deploy fails.
+
+**3. Why I did it**
+- Production deploys happen automatically on merge, so no manual steps.
+- The merge to `main` acts as the promotion gate; production only gets tested changes.
+- OIDC scopes the production role to merges to `main` only.
+
+**4. What I rejected**
+- Deploying to production from any branch (would bypass the promotion gate).
+- Using a single shared deploy role for both environments.
+
+---
+
+## Phase 2.5 (Website Content)
+
+**1. What this task is solving**
+
+Provides the actual website files that the pipeline deploys, so the staging and production sync steps have real content to upload.
+
+**2. What I did**
+- Created `website/index.html`, a self-contained homepage for CloudPipe.
+- Included inline CSS and a small script so it deploys cleanly without separate asset files.
+- Added a header, a hero section, a note about the CI/CD deployment, a contact card, and a footer.
+
+**3. Why I did it**
+- The deploy workflows run `aws s3 sync ./website`, so the folder needs real files to sync.
+- A self-contained page keeps the first deploy simple and avoids missing-asset issues.
+- It gives the pipeline real content to test with during integration.
+
+**4. What I rejected**
+- Leaving the `website/` folder empty (the deploy steps would sync nothing).
+- Adding separate CSS/JS asset files before the pipeline is proven (kept it simple for now).
