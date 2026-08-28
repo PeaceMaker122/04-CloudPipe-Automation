@@ -178,10 +178,7 @@ export class InfrastructureStack extends cdk.Stack {
     aiReviewRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ['bedrock:InvokeModel'],
-        resources: [
-          `arn:aws:bedrock:${this.region}::foundation-model/*`,
-          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/*`,
-        ],
+        resources: ['*'],
       }),
     );
 
