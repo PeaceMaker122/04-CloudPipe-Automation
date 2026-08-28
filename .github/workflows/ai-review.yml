@@ -61,12 +61,19 @@ jobs:
 
           bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
           try:
-              response = bedrock.converse(
+              body = json.dumps({
+                  "anthropic_version": "bedrock-2023-05-31",
+                  "max_tokens": 2048,
+                  "messages": [{"role": "user", "content": prompt}],
+              })
+              response = bedrock.invoke_model(
                   modelId=model_id,
-                  messages=[{"role": "user", "content": [{"text": prompt}]}],
-                  inferenceConfig={"maxTokens": 2048},
+                  body=body,
+                  contentType="application/json",
+                  accept="application/json",
               )
-              review = response["output"]["message"]["content"][0]["text"]
+              result = json.loads(response["body"].read())
+              review = result["content"][0]["text"]
           except ClientError as e:
               print(f"Bedrock error: {e}")
               raise
