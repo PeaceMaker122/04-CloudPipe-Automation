@@ -199,6 +199,13 @@ export class InfrastructureStack extends cdk.Stack {
         PRODUCTION_URL: `https://${DOMAIN}`,
       },
     });
+    // Allow the health check to publish its metric to CloudWatch.
+    healthCheckFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['cloudwatch:PutMetricData'],
+        resources: ['*'],
+      }),
+    );
 
     // Run the health check every 5 minutes.
     const schedule = new events.Rule(this, 'HealthCheckSchedule', {
