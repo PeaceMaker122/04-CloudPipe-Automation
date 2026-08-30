@@ -322,6 +322,50 @@ Resolves the issues that surfaced when the pipeline ran for the first time, so t
 
 ---
 
-## Test Note
+## Phase 3 (Rollback Process)
 
-This entry is a small test change to evaluate the full CI/CD process end to end.
+**1. What this task is solving**
+
+Tests the rollback capability so a bad deployment can be undone quickly by restoring the last known-good version of the site.
+
+**2. What I did**
+- Introduced a deliberate typo in `index.html` (a misspelled closing tag) that broke the page title and layout.
+- Deployed the broken version to production via a pull request.
+- Confirmed the site was broken (the title/layout did not render correctly).
+- Restored the previous good version of `index.html` using S3 object versioning in the production bucket.
+- Invalidated the production CloudFront cache so visitors immediately saw the restored version.
+- Confirmed the site was back to normal.
+
+**3. Why I did it**
+- S3 object versioning keeps every previous version, so rollback is fast and does not require re-uploading files.
+- Cache invalidation ensures visitors see the restored version instead of a cached broken one.
+- Testing the rollback once proves the process actually works.
+
+**4. What I rejected**
+- Leaving the rollback process untested (a rollback you have never run is not a rollback you actually have).
+- Relying on re-uploading files manually instead of using S3 versioning.
+
+---
+
+## Phase 4 (Integration & Monitoring Testing)
+
+**1. What this task is solving**
+
+Tests that the monitoring flow works end to end: a broken site is detected by the synthetic check, triggers the CloudWatch alarm, and notifies the team via SNS.
+
+**2. What I did**
+- Removed `index.html` from the production deployment (renamed it to `index.html.disabled`) so the site returned an error response.
+- Confirmed the site returned an AccessDenied error (expected for a private bucket with no root object).
+- Discovered the health check Lambda lacked `cloudwatch:PutMetricData` permission, so it could not publish its metric.
+- Added the `cloudwatch:PutMetricData` permission to the Lambda's execution role and redeployed.
+- Confirmed the synthetic check detected the failure, the CloudWatch alarm went to In alarm, and an SNS notification was sent to the alert email.
+- Fixed forward by restoring `index.html` and fixing the typo, confirming the site was healthy again and the alarm returned to OK.
+
+**3. Why I did it**
+- A synthetic check verifies the live site actually responds, not just that a deployment ran.
+- The CloudWatch alarm and SNS notification ensure the team is alerted automatically within minutes of a problem.
+- Testing the flow once proves the monitoring works end to end.
+
+**4. What I rejected**
+- Relying on a customer to report an outage instead of automated monitoring.
+- Leaving the monitoring flow untested.
