@@ -21,7 +21,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Deploy to staging S3
-        run: aws s3 sync ./website s3://infrastructurestack-stagingbucket9644c37c-z4nik62whxhv --delete
+        run: aws s3 sync ./website s3://infrastructurestack-stagingbucket9644c37c-z0ccwiboxzg0 --delete
 
       - name: Invalidate staging CloudFront cache
-        run: aws cloudfront create-invalidation --distribution-id E2VT0HGFFZW1YO --paths "/*"
+        run: aws cloudfront create-invalidation --distribution-id E1G5WY0ABCLJMQ --paths "/*"

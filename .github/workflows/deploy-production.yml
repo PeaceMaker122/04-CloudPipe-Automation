@@ -21,10 +21,10 @@ jobs:
           aws-region: us-east-1
 
       - name: Deploy to production S3
-        run: aws s3 sync ./website s3://infrastructurestack-productionbucket97868c75-q9nnpl7gbst9 --delete
+        run: aws s3 sync ./website s3://infrastructurestack-productionbucket97868c75-uccvgjjdcv3s --delete
 
       - name: Invalidate production CloudFront cache
-        run: aws cloudfront create-invalidation --distribution-id E2MLDU7O5FE5 --paths "/*"
+        run: aws cloudfront create-invalidation --distribution-id E1WIAWN6V5JDNG --paths "/*"
 
       - name: Notify team on failure
         if: failure()
