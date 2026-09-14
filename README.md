@@ -8,6 +8,22 @@ This project replaces that manual workflow with a modern CI/CD pipeline. Code pu
 
 ---
 
+## Video Walkthrough
+
+### Part 1
+
+This walkthrough introduces the CloudPipe CI/CD pipeline and its automated deployment flow.
+
+[![CloudPipe CI-CD and AI Security Review - Part 1](screenshots/Video%20Walkthroughs/CloudPipe%20CI-CD%20and%20AI%20Security%20Review%20-%20Part%201.png)](https://www.loom.com/share/a3c795dff1114d2a8f531f5b29ea40f5)
+
+### Part 2
+
+This walkthrough highlights the AI security review and the safeguards built into the deployment process.
+
+[![CloudPipe CI-CD and AI Security Review - Part 2](screenshots/Video%20Walkthroughs/CloudPipe%20CI-CD%20and%20AI%20Security%20Review%20-%20Part%202.png)](https://www.loom.com/share/28dcd60cdf1e4ee8b6c59c0b2592d90a)
+
+---
+
 ## The Problem
 
 Every time a developer needed to update a website, they had to:
